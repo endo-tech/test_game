@@ -12,6 +12,10 @@ class GameScene: SKScene {
     private var timeLabel: SKLabelNode!
     private var gameOverLabel: SKLabelNode!
     private var comboLabel: SKLabelNode!
+    private var finalScoreLabel: SKLabelNode!
+    private var submitButton: SKLabelNode!
+    private var retryButton: SKLabelNode!
+    private var backToMenuButton: SKLabelNode!
 
     // board model
     private var board: Board = Board(rows: 8, cols: 8)
@@ -27,10 +31,32 @@ class GameScene: SKScene {
     private var inputEnabled = true
 
     // timeout game-over
-    private var timeRemaining: TimeInterval = 5.0
+    private var initialTime: TimeInterval = 10.0 // 難易度による制限時間
+    private var timeRemaining: TimeInterval = 10.0
     private var countdownActive: Bool = true
     private var lastUpdateTime: TimeInterval? = nil
     private var isGameOver: Bool = false
+    private var gameOverUIVisible: Bool = false
+    
+    // 広告リトライ機能
+    private var retryButton2: SKLabelNode? // タイムアップ時のリトライボタン
+    private var showedContinueOption = false // 継続オプションを表示したかどうか
+    private var continueUsedToday: Int {
+        get {
+            let key = "continueUsedToday_\(getCurrentDateString())"
+            return UserDefaults.standard.integer(forKey: key)
+        }
+        set {
+            let key = "continueUsedToday_\(getCurrentDateString())"
+            UserDefaults.standard.set(newValue, forKey: key)
+        }
+    }
+    
+    private func getCurrentDateString() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: Date())
+    }
     
     // combo system
     private var comboCount: Int = 0
@@ -93,15 +119,23 @@ class GameScene: SKScene {
     override func didMove(to view: SKView) {
         backgroundColor = .white
 
+        // 難易度設定を取得（デフォルトは10秒）
+        let difficulty = UserDefaults.standard.integer(forKey: "selectedDifficulty")
+        initialTime = TimeInterval(difficulty > 0 ? difficulty : 10)
+        timeRemaining = initialTime
+        
+        // 最後にプレイした難易度を保存（ランキング送信時に使用）
+        UserDefaults.standard.set(Int(initialTime), forKey: "lastPlayedDifficulty")
+
         setupBackground()
         setupScoreLabel()
         setupTimeLabel()
         setupGameOverLabel()
         setupComboLabel()
+        setupGameOverUI()
         layoutBoardArea()
         renderBoard()
         // start countdown immediately
-        timeRemaining = 10.0
         countdownActive = true
         
         // リワード広告を事前読み込み
@@ -129,12 +163,12 @@ class GameScene: SKScene {
     }
 
     private func setupGameOverLabel() {
-        gameOverLabel = SKLabelNode(text: "GAME OVER")
+        gameOverLabel = SKLabelNode(text: "TIME UP")
         gameOverLabel.fontName = "Helvetica-Bold"
-        gameOverLabel.fontSize = 36
+        gameOverLabel.fontSize = 32
         gameOverLabel.fontColor = .red
         gameOverLabel.horizontalAlignmentMode = .center
-        gameOverLabel.position = CGPoint(x: size.width / 2, y: 60)
+        gameOverLabel.position = CGPoint(x: size.width / 2, y: size.height * 0.17) // 盤面の下に配置
         gameOverLabel.alpha = 0.0
         gameOverLabel.zPosition = 2000
         addChild(gameOverLabel)
@@ -151,14 +185,64 @@ class GameScene: SKScene {
         comboLabel.zPosition = 1500
         addChild(comboLabel)
     }
+    
+    private func setupGameOverUI() {
+        // 最終スコア表示（画面中央に配置）
+        finalScoreLabel = SKLabelNode(text: "")
+        finalScoreLabel.fontName = "Helvetica-Bold"
+        finalScoreLabel.fontSize = 28
+        finalScoreLabel.fontColor = .white
+        finalScoreLabel.horizontalAlignmentMode = .center
+        finalScoreLabel.position = CGPoint(x: size.width / 2, y: size.height * 0.60) // 盤面の下に配置
+        finalScoreLabel.alpha = 0.0
+        finalScoreLabel.zPosition = 2001
+        addChild(finalScoreLabel)
+        
+        // スコア送信ボタン（盤面の下、コンパクトに配置）
+        submitButton = SKLabelNode(text: "スコアをランキングに反映")
+        submitButton.name = "submitScore"
+        submitButton.fontName = "Helvetica-Bold"
+        submitButton.fontSize = 16
+        submitButton.fontColor = .systemYellow
+        submitButton.horizontalAlignmentMode = .center
+        submitButton.position = CGPoint(x: size.width / 2, y: size.height * 0.12)
+        submitButton.alpha = 0.0
+        submitButton.zPosition = 2001
+        addChild(submitButton)
+        
+        // リトライボタン（コンパクトに配置）
+        retryButton = SKLabelNode(text: "リトライ")
+        retryButton.name = "retry"
+        retryButton.fontName = "Helvetica-Bold"
+        retryButton.fontSize = 18
+        retryButton.fontColor = .systemGreen
+        retryButton.horizontalAlignmentMode = .center
+        retryButton.position = CGPoint(x: size.width / 2, y: size.height * 0.08)
+        retryButton.alpha = 0.0
+        retryButton.zPosition = 2001
+        addChild(retryButton)
+        
+        // トップページへ戻るボタン（コンパクトに配置）
+        backToMenuButton = SKLabelNode(text: "トップページへ戻る")
+        backToMenuButton.name = "backToMenu"
+        backToMenuButton.fontName = "Helvetica-Bold"
+        backToMenuButton.fontSize = 18
+        backToMenuButton.fontColor = .white
+        backToMenuButton.horizontalAlignmentMode = .center
+        backToMenuButton.position = CGPoint(x: size.width / 2, y: size.height * 0.04)
+        backToMenuButton.alpha = 0.0
+        backToMenuButton.zPosition = 2001
+        addChild(backToMenuButton)
+    }
 
     private func setupScoreLabel() {
         scoreLabel = SKLabelNode(text: "Score: 0")
         scoreLabel.fontName = "Helvetica-Bold"
-        scoreLabel.fontSize = 20
-        scoreLabel.fontColor = .black
-        scoreLabel.horizontalAlignmentMode = .left
-        scoreLabel.position = CGPoint(x: 20, y: size.height - 40)
+        scoreLabel.fontSize = 32
+        scoreLabel.fontColor = .white
+        scoreLabel.horizontalAlignmentMode = .center
+        scoreLabel.position = CGPoint(x: size.width / 2, y: size.height * 0.83) // Timeと被らない位置
+        scoreLabel.zPosition = 1500
         addChild(scoreLabel)
     }
 
@@ -215,9 +299,36 @@ class GameScene: SKScene {
 
     // MARK: - touch handlers
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard inputEnabled else { return }
         guard let t = touches.first else { return }
         let p = t.location(in: self)
+        
+        // ゲームオーバー時のボタン処理
+        if gameOverUIVisible {
+            if nodes(at: p).contains(where: { $0.name == "watchAdToContinue" }) {
+                handleWatchAdToContinue()
+                return
+            }
+            if nodes(at: p).contains(where: { $0.name == "endGame" }) {
+                // 継続画面をクリアしてゲームオーバー画面へ
+                clearContinueUI()
+                showGameOverUI()
+                return
+            }
+            if nodes(at: p).contains(where: { $0.name == "submitScore" }) {
+                handleSubmitScore()
+                return
+            }
+            if nodes(at: p).contains(where: { $0.name == "retry" }) {
+                handleRetry()
+                return
+            }
+            if nodes(at: p).contains(where: { $0.name == "backToMenu" }) {
+                handleBackToMenu()
+                return
+            }
+        }
+        
+        guard inputEnabled else { return }
         if let node = nodes(at: p).first(where: { $0.name == "restart" }) {
             restartGame()
             return
@@ -351,7 +462,7 @@ class GameScene: SKScene {
         
         let gained = Int(Double(baseScore) * comboMultiplier)
         score += gained
-        scoreLabel.text = "Score: \(score)"
+        scoreLabel.text = "Score: \(formatNumber(score))"
 
         // collect nodes to remove and clear their nodeMap entries
         var removingNodes: [(pos: Position, node: SKNode)] = []
@@ -515,7 +626,7 @@ class GameScene: SKScene {
     
     // MARK: - Timer / Game Over
     private func resetTimer() {
-        timeRemaining = 10.0
+        timeRemaining = initialTime
         countdownActive = true
         updateTimeLabel()
     }
@@ -532,22 +643,288 @@ class GameScene: SKScene {
         inputEnabled = false
         isAnimating = true
 
+        // save last score to UserDefaults
+        UserDefaults.standard.set(self.score, forKey: "lastScore")
+        
+        // 広告リトライが利用可能かチェック
+        if continueUsedToday < 3 {
+            // 広告視聴で継続のオプションを表示
+            showContinueOption()
+        } else {
+            // 通常のゲームオーバー
+            showGameOverUI()
+        }
+    }
+    
+    private func showContinueOption() {
+        showedContinueOption = true // 継続オプション表示フラグを立てる
+        // タイムアップメッセージ
+        let timeUpLabel = SKLabelNode(text: "TIME UP!")
+        timeUpLabel.fontName = "Helvetica-Bold"
+        timeUpLabel.fontSize = 40
+        timeUpLabel.fontColor = .red
+        timeUpLabel.horizontalAlignmentMode = .center
+        timeUpLabel.position = CGPoint(x: size.width / 2, y: size.height * 0.24) // もう少し上に配置
+        timeUpLabel.alpha = 0.0
+        timeUpLabel.zPosition = 2000
+        addChild(timeUpLabel)
+        timeUpLabel.run(SKAction.fadeIn(withDuration: 0.5))
+        
+        // 継続ボタン（上に配置）
+        retryButton2 = SKLabelNode(text: "広告を見て継続")
+        retryButton2?.name = "watchAdToContinue"
+        retryButton2?.fontName = "Helvetica-Bold"
+        retryButton2?.fontSize = 18
+        retryButton2?.fontColor = .systemGreen
+        retryButton2?.horizontalAlignmentMode = .center
+        retryButton2?.position = CGPoint(x: size.width / 2, y: size.height * 0.19)
+        retryButton2?.alpha = 0.0
+        retryButton2?.zPosition = 2001
+        if let btn = retryButton2 {
+            addChild(btn)
+        }
+        
+        // 残り回数表示（下に配置）
+        let remainingLabel = SKLabelNode(text: "今日の残り回数: \(3 - continueUsedToday)/3")
+        remainingLabel.fontName = "Helvetica"
+        remainingLabel.fontSize = 14
+        remainingLabel.fontColor = .white
+        remainingLabel.horizontalAlignmentMode = .center
+        remainingLabel.position = CGPoint(x: size.width / 2, y: size.height * 0.15)
+        remainingLabel.alpha = 0.0
+        remainingLabel.zPosition = 2001
+        addChild(remainingLabel)
+        
+        // 終了ボタン（コンパクトに）
+        let endButton = SKLabelNode(text: "終了")
+        endButton.name = "endGame"
+        endButton.fontName = "Helvetica-Bold"
+        endButton.fontSize = 18
+        endButton.fontColor = .systemRed
+        endButton.horizontalAlignmentMode = .center
+        endButton.position = CGPoint(x: size.width / 2, y: size.height * 0.08)
+        endButton.alpha = 0.0
+        endButton.zPosition = 2001
+        addChild(endButton)
+        
+        // フェードイン
+        let fadeIn = SKAction.sequence([
+            SKAction.wait(forDuration: 0.3),
+            SKAction.fadeIn(withDuration: 0.5)
+        ])
+        remainingLabel.run(fadeIn)
+        retryButton2?.run(fadeIn)
+        endButton.run(fadeIn)
+        
+        gameOverUIVisible = true
+    }
+    
+    private func showGameOverUI() {
+        gameOverUIVisible = true
+
         // show GAME OVER label (fade in)
         gameOverLabel.alpha = 0.0
         let fade = SKAction.fadeIn(withDuration: 1.0)
         gameOverLabel.run(fade)
-
-        // after short delay, go back to opening scene
-        let delay = DispatchTime.now() + 1.2
-        DispatchQueue.main.asyncAfter(deadline: delay) { [weak self] in
-            guard let self = self, let view = self.view else { return }
-            // save last score to UserDefaults so OpeningScene can offer submission
-            UserDefaults.standard.set(self.score, forKey: "lastScore")
-
-            let scene = OpeningScene(size: self.size)
-            scene.scaleMode = .aspectFill
-            view.presentScene(scene, transition: SKTransition.crossFade(withDuration: 0.4))
+        
+        // 最終スコア表示（カンマ区切り）
+        finalScoreLabel.text = "Final Score: \(formatNumber(score))"
+        finalScoreLabel.alpha = 0.0
+        let fadeScore = SKAction.sequence([
+            SKAction.wait(forDuration: 0.5),
+            SKAction.fadeIn(withDuration: 0.5)
+        ])
+        finalScoreLabel.run(fadeScore)
+        
+        // ボタン表示
+        let buttonFade = SKAction.sequence([
+            SKAction.wait(forDuration: 1.0),
+            SKAction.fadeIn(withDuration: 0.5)
+        ])
+        submitButton.run(buttonFade)
+        retryButton.run(buttonFade)
+        backToMenuButton.run(buttonFade)
+        
+        // インタースティシャル広告を表示（継続画面から来た場合は表示しない）
+        if !showedContinueOption {
+            if let viewController = self.view?.window?.rootViewController {
+                AdMobManager.shared.onGameEnd(from: viewController) {
+                    print("Ad completed or skipped")
+                }
+            }
         }
+    }
+    
+    // MARK: - Game Over Button Handlers
+    private func handleWatchAdToContinue() {
+        guard let viewController = self.view?.window?.rootViewController else { return }
+        
+        // 広告を1本視聴
+        AdMobManager.shared.showRewardedAd(from: viewController) { [weak self] success in
+            guard let self = self else { return }
+            
+            if !success {
+                DispatchQueue.main.async {
+                    self.showSubmitFeedback("広告視聴が必要です")
+                }
+                return
+            }
+            
+            // 広告視聴成功 - ゲーム継続
+            DispatchQueue.main.async {
+                print("[Continue] Ad watched successfully, continuing game...")
+                
+                // カウントを増やす
+                self.continueUsedToday += 1
+                print("[Continue] Continue count: \(self.continueUsedToday)/3")
+                
+                // UIをクリア
+                self.clearContinueUI()
+                
+                // ゲーム状態をリセット
+                self.isGameOver = false
+                self.gameOverUIVisible = false
+                self.countdownActive = true
+                self.inputEnabled = true
+                self.isAnimating = false
+                
+                // タイマーをリセット
+                self.timeRemaining = self.initialTime
+                self.updateTimeLabel()
+                
+                // スコアラベルを再表示
+                self.scoreLabel.alpha = 1.0
+                
+                self.showSubmitFeedback("プレイを継続します！")
+                print("[Continue] Game resumed successfully")
+            }
+        }
+    }
+    
+    private func clearContinueUI() {
+        // 継続画面のUI要素を削除
+        for node in children {
+            if node.name == "watchAdToContinue" || node.name == "endGame" ||
+               (node is SKLabelNode && (node as! SKLabelNode).text?.contains("TIME UP") == true) ||
+               (node is SKLabelNode && (node as! SKLabelNode).text?.contains("広告を1本視聴") == true) ||
+               (node is SKLabelNode && (node as! SKLabelNode).text?.contains("今日の残り回数") == true) {
+                node.removeFromParent()
+            }
+        }
+        // ゲームオーバーラベルも非表示に
+        gameOverLabel?.alpha = 0.0
+        retryButton2 = nil
+        print("[ClearUI] Continue UI cleared")
+    }
+    
+    private func handleSubmitScore() {
+        guard let viewController = self.view?.window?.rootViewController else { return }
+        
+        promptForUsername { [weak self] username in
+            guard let self = self, let username = username else { return }
+            
+            if !AdMobManager.shared.isReady {
+                self.showSubmitFeedback("広告を読み込んでいます...")
+                AdMobManager.shared.loadRewardedAd()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    if AdMobManager.shared.isReady {
+                        self.showAdAndSubmitScore(viewController: viewController, score: self.score, username: username)
+                    } else {
+                        self.showSubmitFeedback("広告の読み込みに失敗しました")
+                    }
+                }
+            } else {
+                self.showAdAndSubmitScore(viewController: viewController, score: self.score, username: username)
+            }
+        }
+    }
+    
+    private func handleRetry() {
+        let scene = GameScene(size: size)
+        scene.scaleMode = .aspectFill
+        view?.presentScene(scene, transition: SKTransition.crossFade(withDuration: 0.4))
+    }
+    
+    private func handleBackToMenu() {
+        let scene = OpeningScene(size: size)
+        scene.scaleMode = .aspectFill
+        view?.presentScene(scene, transition: SKTransition.crossFade(withDuration: 0.4))
+    }
+    
+    private func promptForUsername(completion: @escaping (String?) -> Void) {
+        guard let viewController = self.view?.window?.rootViewController else {
+            completion(nil)
+            return
+        }
+        
+        let alert = UIAlertController(title: "ランキング登録", message: "名前を入力してください", preferredStyle: .alert)
+        alert.addTextField { textField in
+            textField.placeholder = "名前"
+        }
+        alert.addAction(UIAlertAction(title: "キャンセル", style: .cancel) { _ in
+            completion(nil)
+        })
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
+            let name = alert.textFields?.first?.text ?? "Player"
+            completion(name.isEmpty ? "Player" : name)
+        })
+        viewController.present(alert, animated: true)
+    }
+    
+    private func showAdAndSubmitScore(viewController: UIViewController, score: Int, username: String) {
+        AdMobManager.shared.showRewardedAd(from: viewController) { [weak self] success in
+            guard let self = self else { return }
+            if success {
+                RankingsManager.shared.setup { err in
+                    if let e = err {
+                        print("Auth error: \(e)")
+                        DispatchQueue.main.async {
+                            self.showSubmitFeedback("認証に失敗しました")
+                        }
+                        return
+                    }
+                    // 現在の難易度を取得（UserDefaultsから）
+                    let difficulty = UserDefaults.standard.integer(forKey: "lastPlayedDifficulty")
+                    print("[Ranking] Submitting score: \(score), difficulty: \(difficulty)")
+                    RankingsManager.shared.submitScore(score, difficulty: difficulty, name: username) { err in
+                        DispatchQueue.main.async {
+                            if let e = err {
+                                print("Submit error: \(e)")
+                                self.showSubmitFeedback("送信に失敗しました")
+                            } else {
+                                self.showSubmitFeedback("スコアを送信しました！")
+                            }
+                        }
+                    }
+                }
+            } else {
+                self.showSubmitFeedback("広告視聴がキャンセルされました")
+            }
+        }
+    }
+    
+    private func showSubmitFeedback(_ text: String) {
+        let lbl = SKLabelNode(text: text)
+        lbl.fontName = "Helvetica"
+        lbl.fontSize = 18
+        lbl.fontColor = .white
+        lbl.position = CGPoint(x: size.width / 2, y: size.height * 0.20)
+        lbl.alpha = 0.0
+        lbl.zPosition = 2002
+        addChild(lbl)
+        let seq = SKAction.sequence([
+            SKAction.fadeIn(withDuration: 0.2),
+            SKAction.wait(forDuration: 2.0),
+            SKAction.fadeOut(withDuration: 0.3),
+            SKAction.removeFromParent()
+        ])
+        lbl.run(seq)
+    }
+    
+    private func formatNumber(_ num: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: num)) ?? "\(num)"
     }
 
     override func update(_ currentTime: TimeInterval) {
