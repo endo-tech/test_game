@@ -204,51 +204,58 @@ class GameScene: SKScene {
     }
     
     private func setupGameOverUI() {
-        // 最終スコア表示（画面中央に配置）
+        // 最終スコア表示（画面中央に配置）- 削除
         finalScoreLabel = SKLabelNode(text: "")
         finalScoreLabel.fontName = "Helvetica-Bold"
         finalScoreLabel.fontSize = 28
         finalScoreLabel.fontColor = .white
         finalScoreLabel.horizontalAlignmentMode = .center
-        finalScoreLabel.position = CGPoint(x: size.width / 2, y: size.height * 0.60) // 盤面の下に配置
+        finalScoreLabel.position = CGPoint(x: size.width / 2, y: size.height * 0.60)
         finalScoreLabel.alpha = 0.0
         finalScoreLabel.zPosition = 2001
-        addChild(finalScoreLabel)
+        // Final Scoreは非表示にするためシーンに追加しない
+        // addChild(finalScoreLabel)
         
-        // スコア送信ボタン（盤面の下、コンパクトに配置）
+        // スコア送信ボタン（盤面の下、背景追加）
         submitButton = SKLabelNode(text: "スコアをランキングに反映")
         submitButton.name = "submitScore"
         submitButton.fontName = "Helvetica-Bold"
         submitButton.fontSize = 16
-        submitButton.fontColor = .systemYellow
+        submitButton.fontColor = .white
         submitButton.horizontalAlignmentMode = .center
-        submitButton.position = CGPoint(x: size.width / 2, y: size.height * 0.12)
+        submitButton.verticalAlignmentMode = .center
+        submitButton.position = CGPoint(x: size.width / 2, y: size.height * 0.24)
         submitButton.alpha = 0.0
         submitButton.zPosition = 2001
+        submitButton.addButtonBackground(color: UIColor(red: 1.0, green: 0.8, blue: 0.0, alpha: 0.9), padding: 20)
         addChild(submitButton)
         
-        // リトライボタン（コンパクトに配置）
+        // リトライボタン（盤面の下、背景追加）
         retryButton = SKLabelNode(text: "リトライ")
         retryButton.name = "retry"
         retryButton.fontName = "Helvetica-Bold"
         retryButton.fontSize = 18
-        retryButton.fontColor = .systemGreen
+        retryButton.fontColor = .white
         retryButton.horizontalAlignmentMode = .center
-        retryButton.position = CGPoint(x: size.width / 2, y: size.height * 0.08)
+        retryButton.verticalAlignmentMode = .center
+        retryButton.position = CGPoint(x: size.width / 2, y: size.height * 0.17)
         retryButton.alpha = 0.0
         retryButton.zPosition = 2001
+        retryButton.addButtonBackground(color: UIColor(red: 0.2, green: 0.8, blue: 0.3, alpha: 0.9), padding: 25)
         addChild(retryButton)
         
-        // トップページへ戻るボタン（コンパクトに配置）
+        // トップページへ戻るボタン（盤面の下、背景追加）
         backToMenuButton = SKLabelNode(text: "トップページへ戻る")
         backToMenuButton.name = "backToMenu"
         backToMenuButton.fontName = "Helvetica-Bold"
         backToMenuButton.fontSize = 18
         backToMenuButton.fontColor = .white
         backToMenuButton.horizontalAlignmentMode = .center
-        backToMenuButton.position = CGPoint(x: size.width / 2, y: size.height * 0.04)
+        backToMenuButton.verticalAlignmentMode = .center
+        backToMenuButton.position = CGPoint(x: size.width / 2, y: size.height * 0.10)
         backToMenuButton.alpha = 0.0
         backToMenuButton.zPosition = 2001
+        backToMenuButton.addButtonBackground(color: UIColor(red: 0.3, green: 0.5, blue: 0.8, alpha: 0.9), padding: 20)
         addChild(backToMenuButton)
     }
 
@@ -459,6 +466,17 @@ class GameScene: SKScene {
                 if self.comboCount > 1 {
                     self.showCombo()
                 }
+                
+                // 詰みチェック：有効な手がない場合はシャッフル
+                if !self.board.hasValidMoves() {
+                    print("[Board] No valid moves available - shuffling board")
+                    self.showShuffleMessage()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        self.board.shuffle()
+                        self.renderBoard()
+                        print("[Board] Board shuffled and re-rendered")
+                    }
+                }
             } else {
                 // continue chain
                 self.handleMatchesLoop(initialMatches: newMatches)
@@ -654,6 +672,25 @@ class GameScene: SKScene {
         comboLabel.run(sequence)
     }
     
+    private func showShuffleMessage() {
+        let shuffleLabel = SKLabelNode(text: "盤面をシャッフル中...")
+        shuffleLabel.fontName = "Helvetica-Bold"
+        shuffleLabel.fontSize = 24
+        shuffleLabel.fontColor = .white
+        shuffleLabel.horizontalAlignmentMode = .center
+        shuffleLabel.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        shuffleLabel.alpha = 0.0
+        shuffleLabel.zPosition = 3000
+        addChild(shuffleLabel)
+        
+        let fadeIn = SKAction.fadeIn(withDuration: 0.3)
+        let wait = SKAction.wait(forDuration: 0.7)
+        let fadeOut = SKAction.fadeOut(withDuration: 0.3)
+        let remove = SKAction.removeFromParent()
+        
+        shuffleLabel.run(SKAction.sequence([fadeIn, wait, fadeOut, remove]))
+    }
+    
     // MARK: - Timer / Game Over
     private func resetTimer() {
         timeRemaining = initialTime
@@ -757,14 +794,14 @@ class GameScene: SKScene {
         let fade = SKAction.fadeIn(withDuration: 1.0)
         gameOverLabel.run(fade)
         
-        // 最終スコア表示（カンマ区切り）
-        finalScoreLabel.text = "Final Score: \(formatNumber(score))"
-        finalScoreLabel.alpha = 0.0
-        let fadeScore = SKAction.sequence([
-            SKAction.wait(forDuration: 0.5),
-            SKAction.fadeIn(withDuration: 0.5)
-        ])
-        finalScoreLabel.run(fadeScore)
+        // 最終スコア表示は削除（Final Scoreは非表示）
+        // finalScoreLabel.text = "Final Score: \(formatNumber(score))"
+        // finalScoreLabel.alpha = 0.0
+        // let fadeScore = SKAction.sequence([
+        //     SKAction.wait(forDuration: 0.5),
+        //     SKAction.fadeIn(withDuration: 0.5)
+        // ])
+        // finalScoreLabel.run(fadeScore)
         
         // ボタン表示
         let buttonFade = SKAction.sequence([

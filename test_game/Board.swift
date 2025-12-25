@@ -98,6 +98,72 @@ final class Board {
         }
         return moves
     }
+    
+    /// プレイ可能な手があるかチェック（隣接する2つのタイルをスワップして3マッチ以上になるか）
+    func hasValidMoves() -> Bool {
+        for r in 0..<rows {
+            for c in 0..<cols {
+                // 右とのスワップをチェック
+                if c < cols - 1 {
+                    swap(from: Position(row: r, col: c), to: Position(row: r, col: c + 1))
+                    if MatchFinder.hasMatches(in: grid) {
+                        // 元に戻す
+                        swap(from: Position(row: r, col: c), to: Position(row: r, col: c + 1))
+                        return true
+                    }
+                    // 元に戻す
+                    swap(from: Position(row: r, col: c), to: Position(row: r, col: c + 1))
+                }
+                
+                // 下とのスワップをチェック
+                if r < rows - 1 {
+                    swap(from: Position(row: r, col: c), to: Position(row: r + 1, col: c))
+                    if MatchFinder.hasMatches(in: grid) {
+                        // 元に戻す
+                        swap(from: Position(row: r, col: c), to: Position(row: r + 1, col: c))
+                        return true
+                    }
+                    // 元に戻す
+                    swap(from: Position(row: r, col: c), to: Position(row: r + 1, col: c))
+                }
+            }
+        }
+        return false
+    }
+    
+    /// 盤面をシャッフル（詰んだ時用）
+    func shuffle() {
+        var tiles: [Tile] = []
+        // 全てのタイルを収集
+        for r in 0..<rows {
+            for c in 0..<cols {
+                if let tile = grid[r][c] {
+                    tiles.append(tile)
+                }
+            }
+        }
+        
+        // シャッフル
+        tiles.shuffle()
+        
+        // 再配置（マッチができないように）
+        var index = 0
+        for r in 0..<rows {
+            for c in 0..<cols {
+                if index < tiles.count {
+                    grid[r][c] = tiles[index]
+                    index += 1
+                }
+            }
+        }
+        
+        // マッチがあれば削除してリフィル
+        while MatchFinder.hasMatches(in: grid) {
+            let matches = MatchFinder.findMatches(in: grid)
+            remove(positions: matches)
+            _ = collapseAndRefill()
+        }
+    }
 
     static func areAdjacent(_ a: Position, _ b: Position) -> Bool {
         let dr = abs(a.row - b.row)
