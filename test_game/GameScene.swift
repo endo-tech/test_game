@@ -16,6 +16,8 @@ class GameScene: SKScene {
     private var submitButton: SKLabelNode!
     private var retryButton: SKLabelNode!
     private var backToMenuButton: SKLabelNode!
+    private var pauseButton: SKLabelNode!
+    private var isGamePaused = false // 一時停止状態
 
     // board model
     private var board: Board = Board(rows: 8, cols: 8)
@@ -126,10 +128,14 @@ class GameScene: SKScene {
         
         // 最後にプレイした難易度を保存（ランキング送信時に使用）
         UserDefaults.standard.set(Int(initialTime), forKey: "lastPlayedDifficulty")
+        
+        // BGMを再生
+        AudioManager.shared.playBGM("Short_mistery_001.mp3")
 
         setupBackground()
         setupScoreLabel()
         setupTimeLabel()
+        setupPauseButton()
         setupGameOverLabel()
         setupComboLabel()
         setupGameOverUI()
@@ -160,6 +166,17 @@ class GameScene: SKScene {
         timeLabel.position = CGPoint(x: size.width / 2, y: size.height - 100)
         timeLabel.zPosition = 1000
         addChild(timeLabel)
+    }
+    
+    private func setupPauseButton() {
+        pauseButton = SKLabelNode(text: "⏸️")
+        pauseButton.name = "pause"
+        pauseButton.fontName = "Helvetica-Bold"
+        pauseButton.fontSize = 32
+        pauseButton.horizontalAlignmentMode = .right
+        pauseButton.position = CGPoint(x: size.width - 20, y: size.height - 100)
+        pauseButton.zPosition = 1000
+        addChild(pauseButton)
     }
 
     private func setupGameOverLabel() {
@@ -302,6 +319,12 @@ class GameScene: SKScene {
         guard let t = touches.first else { return }
         let p = t.location(in: self)
         
+        // 一時停止ボタンの処理
+        if !isGameOver && nodes(at: p).contains(where: { $0.name == "pause" }) {
+            handlePause()
+            return
+        }
+        
         // ゲームオーバー時のボタン処理
         if gameOverUIVisible {
             if nodes(at: p).contains(where: { $0.name == "watchAdToContinue" }) {
@@ -372,6 +395,10 @@ class GameScene: SKScene {
 
         let moveA = SKAction.move(to: posB, duration: duration)
         let moveB = SKAction.move(to: posA, duration: duration)
+        
+        // スライド音を再生
+        AudioManager.shared.playSoundEffect("決定ボタンを押す50.mp3", volume: 0.4)
+        
         nodeA.run(moveA)
         nodeB.run(moveB) {
             // update model
@@ -441,6 +468,9 @@ class GameScene: SKScene {
 
     private func processMatches(matches: Set<Position>, completion: @escaping ()->Void) {
         guard !matches.isEmpty else { completion(); return }
+        
+        // パズルが消える音を再生
+        AudioManager.shared.playSoundEffect("ペタッ.mp3", volume: 0.6)
 
         // scoring with combo multiplier
         let removed = matches.count
@@ -845,7 +875,44 @@ class GameScene: SKScene {
         view?.presentScene(scene, transition: SKTransition.crossFade(withDuration: 0.4))
     }
     
+    private func handlePause() {
+        guard !isGamePaused && !isGameOver else { return }
+        
+        isGamePaused = true
+        countdownActive = false // タイマーを停止
+        isAnimating = true // 操作を無効化
+        
+        // BGMを一時停止
+        AudioManager.shared.pauseBGM()
+        
+        guard let viewController = self.view?.window?.rootViewController else {
+            // ViewControllerが取得できない場合は再開
+            resumeGame()
+            return
+        }
+        
+        // インタースティシャル広告を表示
+        AdMobManager.shared.showPauseAd(from: viewController) { [weak self] in
+            DispatchQueue.main.async {
+                self?.resumeGame()
+            }
+        }
+    }
+    
+    private func resumeGame() {
+        isGamePaused = false
+        countdownActive = true // タイマー再開
+        isAnimating = false // 操作を有効化
+        
+        // BGMを再開
+        AudioManager.shared.resumeBGM()
+        
+        print("Game resumed after pause")
+    }
+    
     private func handleBackToMenu() {
+        // BGMを停止してからメニューへ
+        AudioManager.shared.stopBGM()
         let scene = OpeningScene(size: size)
         scene.scaleMode = .aspectFill
         view?.presentScene(scene, transition: SKTransition.crossFade(withDuration: 0.4))

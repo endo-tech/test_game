@@ -99,6 +99,23 @@ class AdMobManager: NSObject {
         interstitialAd.present(from: viewController)
     }
     
+    // 一時停止時にインタースティシャル広告を表示（公開メソッド）
+    func showPauseAd(from viewController: UIViewController, completion: @escaping () -> Void) {
+        guard let interstitialAd = interstitialAd else {
+            print("Interstitial ad is not ready for pause")
+            completion()
+            // 次回用に新しい広告を読み込む
+            loadInterstitialAd()
+            return
+        }
+        
+        self.completionHandler = { _ in
+            completion()
+        }
+        
+        interstitialAd.present(from: viewController)
+    }
+    
     // リワード広告を表示
     func showRewardedAd(from viewController: UIViewController, completion: @escaping (Bool) -> Void) {
         self.completionHandler = completion
@@ -145,7 +162,8 @@ extension AdMobManager: FullScreenContentDelegate {
             completionHandler?(false)
             completionHandler = nil
         }
-        // 次回用に新しい広告を読み込む
+        // 次回用に新しい広告を読み込む（両方の広告タイプに対応）
         loadRewardedAd()
+        loadInterstitialAd()
     }
 }

@@ -27,6 +27,9 @@ class OpeningScene: SKScene {
         backgroundColor = .black
         setupVideoBackground()
         
+        // BGMを再生
+        AudioManager.shared.playBGM("Short60_ゆったりDIY_01.mp3")
+        
         // 保存された難易度を読み込む
         selectedDifficulty = UserDefaults.standard.integer(forKey: "selectedDifficulty")
         if selectedDifficulty == 0 {
@@ -446,6 +449,8 @@ class OpeningScene: SKScene {
         }
         
         if nodesAt.contains(where: { $0.name == "start" }) {
+            // BGMを停止してからゲーム画面へ
+            AudioManager.shared.stopBGM()
             let scene = GameScene(size: size)
             scene.scaleMode = .aspectFill
             view?.presentScene(scene, transition: SKTransition.crossFade(withDuration: 0.4))
